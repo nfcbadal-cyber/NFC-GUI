@@ -1,0 +1,906 @@
+--[[
+    Professional GUI Framework v1.0
+    Complete Implementation
+    
+    A sleek, production-ready UI library for Roblox
+    Black & Electric Blue Theme with Smooth Animations
+    
+    Usage:
+    ------
+    local ProfessionalUI = require(this_module)
+    local window = ProfessionalUI:CreateWindow("Title", {Width = 700, Height = 450})
+    local tab = window:CreateTab("Main")
+    ProfessionalUI:CreateToggle(tab, {Text = "Enabled", Default = true})
+]]
+
+local ProfessionalUI = {}
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+-- ================================================================
+-- INITIALIZATION
+-- ================================================================
+
+local guiHolder = Instance.new("ScreenGui")
+guiHolder.Name = "ProfessionalUI"
+guiHolder.Parent = LocalPlayer:WaitForChild("PlayerGui")
+guiHolder.ResetOnSpawn = false
+
+-- ================================================================
+-- THEME CONFIGURATION
+-- ================================================================
+
+local Theme = {
+    Background = Color3.fromRGB(10, 10, 15),       -- Deep black with slight blue tint
+    Secondary = Color3.fromRGB(20, 20, 30),        -- Slightly lighter for contrast
+    Tertiary = Color3.fromRGB(30, 30, 40),         -- For elements that need depth
+    Accent = Color3.fromRGB(0, 160, 255),          -- Vibrant electric blue
+    AccentDark = Color3.fromRGB(0, 120, 200),      -- Darker blue for hover states
+    Text = Color3.fromRGB(255, 255, 255),          -- Pure white
+    TextMuted = Color3.fromRGB(180, 180, 180),    -- For secondary text
+    Success = Color3.fromRGB(80, 255, 120),        -- Optional green success
+    Error = Color3.fromRGB(255, 80, 80)            -- Optional red error
+}
+
+-- Corner rounding configuration (smooth curved aesthetic)
+local CornerRadius = UDim.new(0, 12)  -- 12px rounded corners
+
+-- Animation settings
+local AnimationSpeed = 0.2  -- seconds for tweens
+
+-- ================================================================
+-- HELPER FUNCTIONS
+-- ================================================================
+
+-- Drag functionality (since Roblox deprecated .Draggable)
+local function makeDraggable(frame, dragHandle)
+    dragHandle = dragHandle or frame
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            
+            -- Visual feedback during drag
+            local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+            local goal = {BackgroundColor3 = Theme.AccentDark}
+            TweenService:Create(dragHandle, tweenInfo, goal):Play()
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    -- Reset color
+                    local resetGoal = {BackgroundColor3 = Theme.Secondary}
+                    TweenService:Create(dragHandle, tweenInfo, resetGoal):Play()
+                end
+            end)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                         input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            local newPosition = UDim2.new(
+                startPos.X.Scale, 
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+            
+            -- Smooth drag using TweenService
+            local tweenInfo = TweenInfo.new(0.05, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+            local goal = {Position = newPosition}
+            TweenService:Create(frame, tweenInfo, goal):Play()
+        end
+    end)
+end
+
+-- Tween helper for smooth animations
+local function smoothTween(object, properties, duration)
+    duration = duration or AnimationSpeed
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(object, tweenInfo, properties)
+    tween:Play()
+    return tween
+end
+
+-- ================================================================
+-- WINDOW CREATION
+-- ================================================================
+
+function ProfessionalUI:CreateWindow(title, config)
+    config = config or {}
+    local windowWidth = config.Width or 600
+    local windowHeight = config.Height or 400
+    
+    -- Main container frame
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainWindow"
+    mainFrame.Size = UDim2.new(0, windowWidth, 0, windowHeight)
+    mainFrame.Position = UDim2.new(0.5, -windowWidth/2, 0.5, -windowHeight/2)
+    mainFrame.BackgroundColor3 = Theme.Background
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = guiHolder
+    mainFrame.ClipsDescendants = true
+    
+    -- Rounded corners
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = CornerRadius
+    uiCorner.Parent = mainFrame
+    
+    -- Subtle stroke for definition
+    local uiStroke = Instance.new("UIStroke")
+    uiStroke.Color = Theme.Accent
+    uiStroke.Thickness = 1
+    uiStroke.Transparency = 0.8
+    uiStroke.Parent = mainFrame
+    
+    -- Shadow effect
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, 20, 1, 20)
+    shadow.Position = UDim2.new(0, -10, 0, -10)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://13110644456"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.6
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    shadow.Parent = mainFrame
+    shadow.ZIndex = -1
+    
+    -- Title bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 35)
+    titleBar.Position = UDim2.new(0, 0, 0, 0)
+    titleBar.BackgroundColor3 = Theme.Secondary
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+    
+    local titleBarCorner = Instance.new("UICorner")
+    titleBarCorner.CornerRadius = UDim.new(0, 12)
+    titleBarCorner.Parent = titleBar
+    
+    -- Title text
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, -80, 1, 0)
+    titleLabel.Position = UDim2.new(0, 15, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title or "Professional UI"
+    titleLabel.TextColor3 = Theme.Text
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Font = Enum.Font.GothamSemibold
+    titleLabel.TextSize = 16
+    titleLabel.Parent = titleBar
+    
+    -- Minimize button
+    local minimizeBtn = Instance.new("ImageButton")
+    minimizeBtn.Name = "MinimizeButton"
+    minimizeBtn.Size = UDim2.new(0, 24, 0, 24)
+    minimizeBtn.Position = UDim2.new(1, -60, 0.5, -12)
+    minimizeBtn.BackgroundTransparency = 1
+    minimizeBtn.Image = "rbxassetid://6023426920"
+    minimizeBtn.ImageColor3 = Theme.Text
+    minimizeBtn.Parent = titleBar
+    
+    -- Close button
+    local closeBtn = Instance.new("ImageButton")
+    closeBtn.Name = "CloseButton"
+    closeBtn.Size = UDim2.new(0, 24, 0, 24)
+    closeBtn.Position = UDim2.new(1, -30, 0.5, -12)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Image = "rbxassetid://6023426915"
+    closeBtn.ImageColor3 = Theme.Text
+    closeBtn.Parent = titleBar
+    
+    -- Tab container
+    local tabContainer = Instance.new("Frame")
+    tabContainer.Name = "TabContainer"
+    tabContainer.Size = UDim2.new(1, 0, 1, -35)
+    tabContainer.Position = UDim2.new(0, 0, 0, 35)
+    tabContainer.BackgroundColor3 = Theme.Background
+    tabContainer.BorderSizePixel = 0
+    tabContainer.Parent = mainFrame
+    
+    -- Left side for tabs
+    local tabBar = Instance.new("ScrollingFrame")
+    tabBar.Name = "TabBar"
+    tabBar.Size = UDim2.new(0, 120, 1, -20)
+    tabBar.Position = UDim2.new(0, 10, 0, 10)
+    tabBar.BackgroundColor3 = Theme.Secondary
+    tabBar.BackgroundTransparency = 0.3
+    tabBar.BorderSizePixel = 0
+    tabBar.CanvasSize = UDim2.new(0, 0, 2, 0)
+    tabBar.ScrollBarThickness = 4
+    tabBar.ScrollBarImageColor3 = Theme.Accent
+    tabBar.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    tabBar.Parent = tabContainer
+    
+    local tabBarCorner = Instance.new("UICorner")
+    tabBarCorner.CornerRadius = UDim.new(0, 8)
+    tabBarCorner.Parent = tabBar
+    
+    -- Right content area
+    local contentArea = Instance.new("Frame")
+    contentArea.Name = "ContentArea"
+    contentArea.Size = UDim2.new(1, -140, 1, -20)
+    contentArea.Position = UDim2.new(0, 130, 0, 10)
+    contentArea.BackgroundColor3 = Theme.Secondary
+    contentArea.BackgroundTransparency = 0.2
+    contentArea.BorderSizePixel = 0
+    contentArea.Parent = tabContainer
+    contentArea.ClipsDescendants = true
+    
+    local contentCorner = Instance.new("UICorner")
+    contentCorner.CornerRadius = UDim.new(0, 8)
+    contentCorner.Parent = contentArea
+    
+    -- Page container
+    local pageContainer = Instance.new("Frame")
+    pageContainer.Name = "PageContainer"
+    pageContainer.Size = UDim2.new(1, -20, 1, -20)
+    pageContainer.Position = UDim2.new(0, 10, 0, 10)
+    pageContainer.BackgroundTransparency = 1
+    pageContainer.Parent = contentArea
+    
+    -- Make title bar draggable
+    makeDraggable(mainFrame, titleBar)
+    
+    -- ================================================================
+    -- MINIMIZE ICON SYSTEM
+    -- ================================================================
+    
+    local iconFrame = Instance.new("Frame")
+    iconFrame.Name = "MinimizedIcon"
+    iconFrame.Size = UDim2.new(0, 18, 0, 18)
+    iconFrame.Position = UDim2.new(0, 50, 0, 50)
+    iconFrame.BackgroundColor3 = Theme.Accent
+    iconFrame.BackgroundTransparency = 0.2
+    iconFrame.BorderSizePixel = 0
+    iconFrame.Visible = false
+    iconFrame.Parent = guiHolder
+    iconFrame.ZIndex = 1000
+    
+    local iconCorner = Instance.new("UICorner")
+    iconCorner.CornerRadius = UDim.new(0, 6)
+    iconCorner.Parent = iconFrame
+    
+    local iconStroke = Instance.new("UIStroke")
+    iconStroke.Color = Theme.Text
+    iconStroke.Thickness = 1
+    iconStroke.Transparency = 0.5
+    iconStroke.Parent = iconFrame
+    
+    local iconImage = Instance.new("ImageLabel")
+    iconImage.Name = "IconImage"
+    iconImage.Size = UDim2.new(1, -4, 1, -4)
+    iconImage.Position = UDim2.new(0, 2, 0, 2)
+    iconImage.BackgroundTransparency = 1
+    iconImage.Image = "rbxassetid://6023426920"
+    iconImage.ImageColor3 = Theme.Text
+    iconImage.Parent = iconFrame
+    
+    -- Pulse animation for icon
+    local function pulseIcon()
+        local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+        local goal = {Size = UDim2.new(0, 22, 0, 22)}
+        TweenService:Create(iconFrame, tweenInfo, goal):Play()
+    end
+    
+    -- Make icon draggable
+    makeDraggable(iconFrame, iconFrame)
+    
+    -- Window state
+    local isMinimized = false
+    
+    -- Minimize function
+    local function minimize()
+        if isMinimized then return end
+        isMinimized = true
+        
+        local hideTween = smoothTween(mainFrame, {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }, 0.3)
+        
+        hideTween.Completed:Connect(function()
+            mainFrame.Visible = false
+            
+            local absPos = mainFrame.AbsolutePosition
+            iconFrame.Position = UDim2.new(0, absPos.X, 0, absPos.Y)
+            iconFrame.Visible = true
+            
+            smoothTween(iconFrame, {
+                Size = UDim2.new(0, 18, 0, 18)
+            }, 0.2)
+            
+            pulseIcon()
+        end)
+    end
+    
+    -- Maximize function
+    local function maximize()
+        if not isMinimized then return end
+        isMinimized = false
+        
+        local allTweens = TweenService:GetDecorators(iconFrame)
+        if allTweens then
+            for _, tween in pairs(allTweens) do
+                pcall(function() tween:Cancel() end)
+            end
+        end
+        
+        local iconPos = iconFrame.AbsolutePosition
+        
+        iconFrame.Visible = false
+        
+        mainFrame.Position = UDim2.new(0, iconPos.X, 0, iconPos.Y)
+        mainFrame.Size = UDim2.new(0, 18, 0, 18)
+        mainFrame.Visible = true
+        
+        smoothTween(mainFrame, {
+            Size = UDim2.new(0, windowWidth, 0, windowHeight),
+            Position = UDim2.new(0.5, -windowWidth/2, 0.5, -windowHeight/2)
+        }, 0.3)
+    end
+    
+    -- Toggle function
+    local function toggle()
+        if isMinimized then
+            maximize()
+        else
+            minimize()
+        end
+    end
+    
+    -- Connect buttons
+    minimizeBtn.MouseButton1Click:Connect(minimize)
+    
+    iconFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            maximize()
+        end
+    end)
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        mainFrame:Destroy()
+        iconFrame:Destroy()
+    end)
+    
+    -- ================================================================
+    -- WINDOW OBJECT
+    -- ================================================================
+    
+    local windowObj = {
+        Frame = mainFrame,
+        Icon = iconFrame,
+        Toggle = toggle,
+        Minimize = minimize,
+        Maximize = maximize,
+        tabs = {},
+        currentTab = nil
+    }
+    
+    -- ================================================================
+    -- TAB CREATION
+    -- ================================================================
+    
+    function windowObj:CreateTab(name, iconAsset)
+        local tabButton = Instance.new("TextButton")
+        tabButton.Name = name.."Tab"
+        tabButton.Size = UDim2.new(1, -10, 0, 35)
+        tabButton.Position = UDim2.new(0, 5, 0, 5 + (#windowObj.tabs * 40))
+        tabButton.BackgroundColor3 = Theme.Background
+        tabButton.BackgroundTransparency = 0.5
+        tabButton.Text = ""
+        tabButton.BorderSizePixel = 0
+        tabButton.Parent = tabBar
+        
+        local tabCorner = Instance.new("UICorner")
+        tabCorner.CornerRadius = UDim.new(0, 6)
+        tabCorner.Parent = tabButton
+        
+        -- Tab icon
+        if iconAsset then
+            local icon = Instance.new("ImageLabel")
+            icon.Size = UDim2.new(0, 20, 0, 20)
+            icon.Position = UDim2.new(0, 8, 0.5, -10)
+            icon.BackgroundTransparency = 1
+            icon.Image = iconAsset
+            icon.ImageColor3 = Theme.Text
+            icon.Parent = tabButton
+        end
+        
+        -- Tab label
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -30, 1, 0)
+        label.Position = UDim2.new(0, 30, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = name
+        label.TextColor3 = Theme.Text
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Font = Enum.Font.Gotham
+        label.TextSize = 14
+        label.Parent = tabButton
+        
+        tabBar.CanvasSize = UDim2.new(0, 0, 0, 10 + (#windowObj.tabs + 1) * 40)
+        
+        -- Create page
+        local page = Instance.new("ScrollingFrame")
+        page.Name = name.."Page"
+        page.Size = UDim2.new(1, 0, 1, 0)
+        page.BackgroundTransparency = 1
+        page.BorderSizePixel = 0
+        page.ScrollBarThickness = 6
+        page.ScrollBarImageColor3 = Theme.Accent
+        page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        page.Visible = false
+        page.Parent = pageContainer
+        
+        -- Tab selection
+        tabButton.MouseButton1Click:Connect(function()
+            for _, p in ipairs(pageContainer:GetChildren()) do
+                if p:IsA("ScrollingFrame") then
+                    p.Visible = false
+                end
+            end
+            
+            page.Visible = true
+            
+            for _, btn in ipairs(tabBar:GetChildren()) do
+                if btn:IsA("TextButton") then
+                    smoothTween(btn, {BackgroundColor3 = Theme.Background}, 0.1)
+                end
+            end
+            smoothTween(tabButton, {BackgroundColor3 = Theme.Accent}, 0.1)
+        end)
+        
+        table.insert(windowObj.tabs, {Button = tabButton, Page = page})
+        
+        if #windowObj.tabs == 1 then
+            tabButton.MouseButton1Click:Fire()
+        end
+        
+        return page
+    end
+    
+    return windowObj
+end
+
+-- ================================================================
+-- TOGGLE COMPONENT
+-- ================================================================
+
+function ProfessionalUI:CreateToggle(parent, config)
+    config = config or {}
+    local container = Instance.new("Frame")
+    container.Name = "ToggleContainer"
+    container.Size = UDim2.new(1, -20, 0, 40)
+    container.Position = UDim2.new(0, 10, 0, config.Y or 0)
+    container.BackgroundTransparency = 1
+    container.Parent = parent
+    
+    -- Label
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.7, -10, 1, 0)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = config.Text or "Toggle"
+    label.TextColor3 = Theme.Text
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 16
+    label.Parent = container
+    
+    -- Track
+    local track = Instance.new("Frame")
+    track.Name = "Track"
+    track.Size = UDim2.new(0, 50, 0, 24)
+    track.Position = UDim2.new(1, -50, 0.5, -12)
+    track.BackgroundColor3 = Theme.Tertiary
+    track.BorderSizePixel = 0
+    track.Parent = container
+    
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = track
+    
+    -- Knob
+    local knob = Instance.new("Frame")
+    knob.Name = "Knob"
+    knob.Size = UDim2.new(0, 20, 0, 20)
+    knob.Position = UDim2.new(0, 2, 0.5, -10)
+    knob.BackgroundColor3 = Theme.Text
+    knob.BorderSizePixel = 0
+    knob.Parent = track
+    
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = knob
+    
+    local toggled = config.Default or false
+    local callback = config.Callback or function() end
+    
+    -- Update state
+    local function updateState(instant)
+        local targetPos = toggled and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)
+        local trackColor = toggled and Theme.Accent or Theme.Tertiary
+        
+        if instant then
+            knob.Position = targetPos
+            track.BackgroundColor3 = trackColor
+        else
+            smoothTween(knob, {Position = targetPos}, 0.15)
+            smoothTween(track, {BackgroundColor3 = trackColor}, 0.15)
+        end
+    end
+    
+    updateState(true)
+    
+    -- Interaction
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundTransparency = 1
+    button.Text = ""
+    button.Parent = container
+    
+    button.MouseButton1Click:Connect(function()
+        toggled = not toggled
+        updateState(false)
+        callback(toggled)
+    end)
+    
+    button.MouseEnter:Connect(function()
+        smoothTween(knob, {BackgroundColor3 = Theme.Accent}, 0.1)
+    end)
+    
+    button.MouseLeave:Connect(function()
+        smoothTween(knob, {BackgroundColor3 = Theme.Text}, 0.1)
+    end)
+    
+    return {
+        Set = function(_, value)
+            toggled = value
+            updateState(false)
+        end,
+        Get = function() return toggled end
+    }
+end
+
+-- ================================================================
+-- SLIDER COMPONENT
+-- ================================================================
+
+function ProfessionalUI:CreateSlider(parent, config)
+    config = config or {}
+    local container = Instance.new("Frame")
+    container.Name = "SliderContainer"
+    container.Size = UDim2.new(1, -20, 0, 50)
+    container.Position = UDim2.new(0, 10, 0, config.Y or 0)
+    container.BackgroundTransparency = 1
+    container.Parent = parent
+    
+    -- Label and value display
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.5, -10, 0, 20)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = config.Text or "Slider"
+    label.TextColor3 = Theme.Text
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 16
+    label.Parent = container
+    
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size = UDim2.new(0.5, -10, 0, 20)
+    valueLabel.Position = UDim2.new(0.5, 10, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(config.Default or config.Min or 0)
+    valueLabel.TextColor3 = Theme.Accent
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.Font = Enum.Font.GothamBold
+    valueLabel.TextSize = 16
+    valueLabel.Parent = container
+    
+    -- Slider track
+    local track = Instance.new("Frame")
+    track.Name = "SliderTrack"
+    track.Size = UDim2.new(1, 0, 0, 6)
+    track.Position = UDim2.new(0, 0, 0, 30)
+    track.BackgroundColor3 = Theme.Tertiary
+    track.BorderSizePixel = 0
+    track.Parent = container
+    
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = track
+    
+    -- Slider fill
+    local fill = Instance.new("Frame")
+    fill.Name = "SliderFill"
+    fill.Size = UDim2.new(0, 0, 1, 0)
+    fill.BackgroundColor3 = Theme.Accent
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fill
+    
+    -- Slider knob
+    local knob = Instance.new("Frame")
+    knob.Name = "SliderKnob"
+    knob.Size = UDim2.new(0, 16, 0, 16)
+    knob.Position = UDim2.new(0, -8, 0.5, -8)
+    knob.BackgroundColor3 = Theme.Text
+    knob.BorderSizePixel = 0
+    knob.ZIndex = 2
+    knob.Parent = fill
+    
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = knob
+    
+    local min = config.Min or 0
+    local max = config.Max or 100
+    local value = config.Default or min
+    local callback = config.Callback or function() end
+    local increment = config.Increment or 1
+    
+    local function updateValue(newValue, fromDrag)
+        value = math.clamp(newValue, min, max)
+        if increment > 0 then
+            value = math.round(value / increment) * increment
+        end
+        
+        local percent = (value - min) / (max - min)
+        fill.Size = UDim2.new(percent, 0, 1, 0)
+        
+        valueLabel.Text = tostring(value)
+        
+        if not fromDrag then
+            callback(value)
+        end
+    end
+    
+    updateValue(value, true)
+    
+    -- Drag functionality
+    local dragging = false
+    
+    knob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            
+            smoothTween(knob, {Size = UDim2.new(0, 20, 0, 20)}, 0.1)
+            
+            local connection
+            connection = UserInputService.InputChanged:Connect(function()
+                if not dragging then connection:Disconnect() return end
+                
+                local mousePos = Mouse.X
+                local trackPos = track.AbsolutePosition.X
+                local trackSize = track.AbsoluteSize.X
+                
+                local relativeX = math.clamp(mousePos - trackPos, 0, trackSize)
+                local percent = relativeX / trackSize
+                local newValue = min + (max - min) * percent
+                
+                updateValue(newValue, true)
+            end)
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    smoothTween(knob, {Size = UDim2.new(0, 16, 0, 16)}, 0.1)
+                    callback(value)
+                end
+            end)
+        end
+    end)
+    
+    return {
+        Set = function(_, newValue)
+            updateValue(newValue, false)
+        end,
+        Get = function() return value end
+    }
+end
+
+-- ================================================================
+-- DROPDOWN COMPONENT
+-- ================================================================
+
+function ProfessionalUI:CreateDropdown(parent, config)
+    config = config or {}
+    local container = Instance.new("Frame")
+    container.Name = "DropdownContainer"
+    container.Size = UDim2.new(1, -20, 0, 40)
+    container.Position = UDim2.new(0, 10, 0, config.Y or 0)
+    container.BackgroundTransparency = 1
+    container.Parent = parent
+    
+    -- Label
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.5, -10, 1, 0)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = config.Text or "Options"
+    label.TextColor3 = Theme.Text
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 16
+    label.Parent = container
+    
+    -- Dropdown button
+    local dropdownBtn = Instance.new("Frame")
+    dropdownBtn.Name = "DropdownButton"
+    dropdownBtn.Size = UDim2.new(0.5, -10, 0, 30)
+    dropdownBtn.Position = UDim2.new(0.5, 10, 0.5, -15)
+    dropdownBtn.BackgroundColor3 = Theme.Tertiary
+    dropdownBtn.BorderSizePixel = 0
+    dropdownBtn.Parent = container
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = dropdownBtn
+    
+    -- Selected value text
+    local selectedText = Instance.new("TextLabel")
+    selectedText.Size = UDim2.new(1, -30, 1, 0)
+    selectedText.Position = UDim2.new(0, 10, 0, 0)
+    selectedText.BackgroundTransparency = 1
+    selectedText.Text = config.Default or (config.Options and config.Options[1]) or "Select"
+    selectedText.TextColor3 = Theme.Text
+    selectedText.TextXAlignment = Enum.TextXAlignment.Left
+    selectedText.Font = Enum.Font.Gotham
+    selectedText.TextSize = 14
+    selectedText.Parent = dropdownBtn
+    
+    -- Arrow icon
+    local arrow = Instance.new("ImageLabel")
+    arrow.Size = UDim2.new(0, 16, 0, 16)
+    arrow.Position = UDim2.new(1, -26, 0.5, -8)
+    arrow.BackgroundTransparency = 1
+    arrow.Image = "rbxassetid://6023426926"
+    arrow.ImageColor3 = Theme.Text
+    arrow.Parent = dropdownBtn
+    
+    -- Dropdown list
+    local listFrame = Instance.new("Frame")
+    listFrame.Name = "DropdownList"
+    listFrame.Size = UDim2.new(0.5, -10, 0, 0)
+    listFrame.Position = UDim2.new(0.5, 10, 0, 45)
+    listFrame.BackgroundColor3 = Theme.Secondary
+    listFrame.BorderSizePixel = 0
+    listFrame.ClipsDescendants = true
+    listFrame.Visible = false
+    listFrame.Parent = container
+    
+    local listCorner = Instance.new("UICorner")
+    listCorner.CornerRadius = UDim.new(0, 6)
+    listCorner.Parent = listFrame
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Parent = listFrame
+    listLayout.Padding = UDim.new(0, 2)
+    
+    local listPadding = Instance.new("UIPadding")
+    listPadding.Parent = listFrame
+    listPadding.PaddingTop = UDim.new(0, 4)
+    listPadding.PaddingBottom = UDim.new(0, 4)
+    
+    -- Populate options
+    local options = config.Options or {}
+    local callback = config.Callback or function() end
+    
+    for i, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton")
+        optBtn.Name = "Option"..i
+        optBtn.Size = UDim2.new(1, -8, 0, 30)
+        optBtn.Position = UDim2.new(0, 4, 0, 4 + (i-1)*32)
+        optBtn.BackgroundTransparency = 1
+        optBtn.Text = opt
+        optBtn.TextColor3 = Theme.Text
+        optBtn.Font = Enum.Font.Gotham
+        optBtn.TextSize = 14
+        optBtn.Parent = listFrame
+        
+        optBtn.MouseEnter:Connect(function()
+            smoothTween(optBtn, {TextColor3 = Theme.Accent}, 0.1)
+        end)
+        optBtn.MouseLeave:Connect(function()
+            smoothTween(optBtn, {TextColor3 = Theme.Text}, 0.1)
+        end)
+        
+        optBtn.MouseButton1Click:Connect(function()
+            selectedText.Text = opt
+            callback(opt)
+            
+            smoothTween(listFrame, {Size = UDim2.new(0.5, -10, 0, 0)}, 0.15)
+            task.wait(0.15)
+            listFrame.Visible = false
+            arrow.Image = "rbxassetid://6023426926"
+        end)
+    end
+    
+    local listHeight = #options * 32 + 8
+    listFrame.Size = UDim2.new(0.5, -10, 0, 0)
+    
+    -- Toggle dropdown
+    local isOpen = false
+    dropdownBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isOpen = not isOpen
+            
+            if isOpen then
+                listFrame.Visible = true
+                smoothTween(listFrame, {Size = UDim2.new(0.5, -10, 0, listHeight)}, 0.2)
+                arrow.Image = "rbxassetid://6023426925"
+            else
+                smoothTween(listFrame, {Size = UDim2.new(0.5, -10, 0, 0)}, 0.15)
+                task.wait(0.15)
+                listFrame.Visible = false
+                arrow.Image = "rbxassetid://6023426926"
+            end
+        end
+    end)
+    
+    return {
+        Set = function(_, option)
+            selectedText.Text = option
+        end,
+        Get = function() return selectedText.Text end
+    }
+end
+
+-- ================================================================
+-- SECTION DIVIDER
+-- ================================================================
+
+function ProfessionalUI:CreateSection(parent, name, y)
+    local section = Instance.new("Frame")
+    section.Name = "Section_"..name
+    section.Size = UDim2.new(1, -20, 0, 30)
+    section.Position = UDim2.new(0, 10, 0, y or 0)
+    section.BackgroundTransparency = 1
+    section.Parent = parent
+    
+    local line = Instance.new("Frame")
+    line.Size = UDim2.new(1, 0, 0, 2)
+    line.Position = UDim2.new(0, 0, 1, -15)
+    line.BackgroundColor3 = Theme.Accent
+    line.BackgroundTransparency = 0.7
+    line.BorderSizePixel = 0
+    line.Parent = section
+    
+    local lineCorner = Instance.new("UICorner")
+    lineCorner.CornerRadius = UDim.new(1, 0)
+    lineCorner.Parent = line
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Theme.Accent
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 18
+    label.Parent = section
+    
+    return section
+end
+
+return ProfessionalUI
