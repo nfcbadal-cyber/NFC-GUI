@@ -44,7 +44,7 @@ Copy the entire framework into your Roblox script. The framework automatically c
 
 ```lua
 -- Load framework (paste entire code before creating UI)
-local ProfessionalUI = {}
+local ProfessionalUI = loadstring(game:HttpGet(""))()
 -- ... [paste all framework code here]
 ```
 
