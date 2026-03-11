@@ -44,7 +44,7 @@ Copy the entire framework into your Roblox script. The framework automatically c
 
 ```lua
 -- Load framework (paste entire code before creating UI)
-local ProfessionalUI = loadstring(game:HttpGet(""))()
+local ProfessionalUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/nfcbadal-cyber/NFC-GUI/main/Professional-GUI-Roblox"))()
 -- ... [paste all framework code here]
 ```
 
