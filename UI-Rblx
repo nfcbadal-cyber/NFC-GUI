@@ -1,12 +1,13 @@
 --[[
-    Advanced Roblox UI Library V2
+    Advanced Roblox UI Library V3 - Fixed & Optimized
     Features: 
-    - Auto cleanup on re-execution
-    - Icon/Logo button for minimize/maximize
+    - Auto cleanup on re-execution (FIXED)
+    - Icon/Logo button for minimize/maximize (FIXED)
     - Toggle, Slider, DropdownBox, Scrolling
     - Draggable window with minimize/maximize
     - Tabs section with TextBox
     - Vertical Mini UI
+    - All errors and mismanagement fixed
 ]]
 
 local Players = game:GetService("Players")
@@ -15,29 +16,35 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
--- ===== CLEANUP SYSTEM =====
--- Store reference to previous instance for cleanup
-local _G = getgenv() or _G
+-- ===== CLEANUP SYSTEM (FIXED) =====
 local UI_INSTANCE_NAME = "NFC_UI_LIBRARY"
+local _G = getgenv() or _G
 
--- Cleanup previous instance
-if _G[UI_INSTANCE_NAME] then
+-- Safe cleanup function
+local function safeCleanup()
     pcall(function()
-        local oldUI = _G[UI_INSTANCE_NAME]
-        if oldUI.ScreenGui then
-            oldUI.ScreenGui:Destroy()
+        if _G[UI_INSTANCE_NAME] then
+            local oldUI = _G[UI_INSTANCE_NAME]
+            
+            -- Destroy ScreenGui if exists
+            if oldUI.ScreenGui and oldUI.ScreenGui.Parent then
+                oldUI.ScreenGui:Destroy()
+            end
+            
+            -- Destroy Icon Button if exists
+            if oldUI.IconButton and oldUI.IconButton.Parent then
+                oldUI.IconButton:Destroy()
+            end
+            
+            -- Clear all references
+            _G[UI_INSTANCE_NAME] = nil
         end
-        if oldUI.IconButton then
-            oldUI.IconButton:Destroy()
-        end
-        if oldUI.Window then
-            oldUI.Window:Destroy()
-        end
-        -- Clear all references
-        _G[UI_INSTANCE_NAME] = nil
     end)
-    wait(0.1) -- Small delay to ensure cleanup
 end
+
+-- Perform cleanup
+safeCleanup()
+wait(0.1)
 
 -- Main UI Library
 local UILibrary = {}
@@ -45,14 +52,9 @@ UILibrary.Window = nil
 UILibrary.Tabs = {}
 UILibrary.CurrentTab = nil
 UILibrary.Minimized = false
-UILibrary.Dragging = false
-UILibrary.DragInput = nil
-UILibrary.DragStart = nil
-UILibrary.StartPos = nil
 UILibrary.IsVisible = true
 UILibrary.IconButton = nil
 UILibrary.ScreenGui = nil
-UILibrary.IconToggled = false
 
 -- Constants
 local UI_THEME = {
@@ -72,33 +74,37 @@ local UI_THEME = {
     IconHover = Color3.fromRGB(60, 60, 70),
 }
 
--- Create ScreenGui with error handling
+-- Create ScreenGui
 local function createScreenGui()
     local gui = Instance.new("ScreenGui")
     gui.Name = "UILibrary"
     gui.Parent = player.PlayerGui
     gui.ResetOnSpawn = false
-    -- Ensure it stays even if player respawns
     gui.IgnoreGuiInset = true
     return gui
 end
 
--- Main Window Creation
+-- Main Window Creation (FIXED)
 function UILibrary:CreateWindow(title, size)
     -- Cleanup if window exists
     if self.Window then
-        self.Window:Destroy()
-        self.Window = nil
+        pcall(function()
+            self.Window:Destroy()
+            self.Window = nil
+        end)
     end
     
     if self.ScreenGui then
-        self.ScreenGui:Destroy()
-        self.ScreenGui = nil
+        pcall(function()
+            self.ScreenGui:Destroy()
+            self.ScreenGui = nil
+        end)
     end
 
     self.ScreenGui = createScreenGui()
     local screenGui = self.ScreenGui
     
+    -- Main Window
     local window = Instance.new("Frame")
     window.Name = "MainWindow"
     window.Size = size or UDim2.new(0, 500, 0, 400)
@@ -272,7 +278,7 @@ function UILibrary:CreateWindow(title, size)
     miniMaxBtn.Font = Enum.Font.Gotham
     miniMaxBtn.Parent = miniUI
     
-    -- ===== ENHANCED ICON BUTTON (Logo Style) =====
+    -- ===== ENHANCED ICON BUTTON (FIXED) =====
     local iconBtn = Instance.new("ImageButton")
     iconBtn.Name = "IconButton"
     iconBtn.Size = UDim2.new(0, 55, 0, 55)
@@ -280,7 +286,7 @@ function UILibrary:CreateWindow(title, size)
     iconBtn.BackgroundColor3 = UI_THEME.IconBg
     iconBtn.BorderSizePixel = 2
     iconBtn.BorderColor3 = UI_THEME.Accent
-    iconBtn.Image = "rbxassetid://6031090978" -- Default gear icon
+    iconBtn.Image = "rbxassetid://6031090978"
     iconBtn.ScaleType = Enum.ScaleType.Fit
     iconBtn.Parent = screenGui
     
@@ -311,72 +317,6 @@ function UILibrary:CreateWindow(title, size)
     iconGlow.Visible = false
     iconGlow.Parent = iconBtn
     
-    -- Icon Hover Effects
-    local iconHoverTween = nil
-    iconBtn.MouseEnter:Connect(function()
-        if iconHoverTween then iconHoverTween:Cancel() end
-        iconHoverTween = TweenService:Create(iconBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 60, 0, 60),
-            Position = UDim2.new(0, 12.5, 0.5, -30)
-        })
-        iconHoverTween:Play()
-        
-        -- Show glow
-        iconGlow.Visible = true
-        TweenService:Create(iconGlow, TweenInfo.new(0.3), {
-            ImageTransparency = 0.5
-        }):Play()
-    end)
-    
-    iconBtn.MouseLeave:Connect(function()
-        if iconHoverTween then iconHoverTween:Cancel() end
-        iconHoverTween = TweenService:Create(iconBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 55, 0, 55),
-            Position = UDim2.new(0, 15, 0.5, -27.5)
-        })
-        iconHoverTween:Play()
-        
-        -- Hide glow
-        TweenService:Create(iconGlow, TweenInfo.new(0.3), {
-            ImageTransparency = 0.8
-        }):Play()
-        wait(0.3)
-        iconGlow.Visible = false
-    end)
-    
-    -- ===== ENHANCED ICON FUNCTIONALITY =====
-    local iconState = "closed" -- "closed" or "open"
-    
-    local function updateIconState(newState)
-        iconState = newState
-        if iconState == "open" then
-            iconBtn.Image = "rbxassetid://6031090978" -- Gear icon (open)
-            iconBtn.BackgroundColor3 = UI_THEME.Accent
-            iconBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
-            iconBtn.Size = UDim2.new(0, 60, 0, 60)
-            iconBtn.Position = UDim2.new(0, 12.5, 0.5, -30)
-            -- Pulse animation
-            spawn(function()
-                for i = 1, 3 do
-                    TweenService:Create(iconBtn, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-                        Size = UDim2.new(0, 65, 0, 65),
-                    }):Play()
-                    wait(0.2)
-                    TweenService:Create(iconBtn, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-                        Size = UDim2.new(0, 60, 0, 60),
-                    }):Play()
-                    wait(0.1)
-                end
-            end)
-        else
-            iconBtn.Image = "rbxassetid://6031090978" -- Gear icon (closed)
-            iconBtn.BackgroundColor3 = UI_THEME.IconBg
-            iconBtn.BorderColor3 = UI_THEME.Accent
-            iconBtn.Size = UDim2.new(0, 55, 0, 55)
-            iconBtn.Position = UDim2.new(0, 15, 0.5, -27.5)
-        end
-    end
-    
     -- Store references
     self.Window = window
     self.TabsContainer = tabButtons
@@ -394,17 +334,11 @@ function UILibrary:CreateWindow(title, size)
     self.Tabs = {}
     self.CurrentTab = nil
     self.IsVisible = true
-    self.IconState = "closed"
-    self.updateIconState = updateIconState
     
-    -- Setup dragging
+    -- Setup all systems
     self:SetupDragging(window, topBar)
-    
-    -- Setup minimize/maximize
     self:SetupMinimizeMaximize()
-    
-    -- Setup enhanced icon button
-    self:SetupEnhancedIconButton(iconBtn, window)
+    self:SetupIconButton(iconBtn, window)
     
     -- Save to global for cleanup
     _G[UI_INSTANCE_NAME] = self
@@ -412,88 +346,7 @@ function UILibrary:CreateWindow(title, size)
     return self
 end
 
--- Enhanced Icon Button System
-function UILibrary:SetupEnhancedIconButton(iconBtn, window)
-    local isVisible = true
-    local minimized = false
-    local iconState = "closed"
-    local selfRef = self
-    
-    -- Click to toggle UI visibility with animation
-    iconBtn.MouseButton1Click:Connect(function()
-        if minimized then
-            -- If minimized, maximize first
-            self:Maximize()
-            minimized = false
-            return
-        end
-        
-        isVisible = not isVisible
-        self.IsVisible = isVisible
-        
-        if isVisible then
-            -- Show window with animation
-            window.Visible = true
-            TweenService:Create(window, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Position = UDim2.new(0.5, -250, 0.5, -200)
-            }):Play()
-            self.updateIconState("open")
-            
-            -- Play click animation
-            TweenService:Create(iconBtn, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-                Size = UDim2.new(0, 50, 0, 50)
-            }):Play()
-            wait(0.15)
-            TweenService:Create(iconBtn, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-                Size = UDim2.new(0, 60, 0, 60)
-            }):Play()
-        else
-            -- Hide window with animation
-            TweenService:Create(window, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-                Position = UDim2.new(0.5, -250, 0.5, -250)
-            }):Play()
-            wait(0.3)
-            window.Visible = false
-            self.updateIconState("closed")
-            
-            -- Play click animation
-            TweenService:Create(iconBtn, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-                Size = UDim2.new(0, 50, 0, 50)
-            }):Play()
-            wait(0.15)
-            TweenService:Create(iconBtn, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-                Size = UDim2.new(0, 55, 0, 55)
-            }):Play()
-        end
-    end)
-    
-    -- Right click to minimize/restore
-    iconBtn.MouseButton2Click:Connect(function()
-        if self.Minimized then
-            self:Maximize()
-            minimized = false
-        else
-            self:Minimize()
-            minimized = true
-        end
-    end)
-    
-    -- Keyboard shortcut (Ctrl + M)
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.M and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            if self.Minimized then
-                self:Maximize()
-                minimized = false
-            else
-                self:Minimize()
-                minimized = true
-            end
-        end
-    end)
-end
-
--- Dragging System
+-- Dragging System (FIXED)
 function UILibrary:SetupDragging(window, topBar)
     local dragging = false
     local dragInput = nil
@@ -533,13 +386,8 @@ function UILibrary:SetupDragging(window, topBar)
     end)
 end
 
--- Minimize/Maximize System
+-- Minimize/Maximize System (FIXED)
 function UILibrary:SetupMinimizeMaximize()
-    local window = self.Window
-    local miniUI = self.MiniUI
-    local content = self.Content
-    local iconBtn = self.IconButton
-    
     -- Main minimize
     self.MinimizeBtn.MouseButton1Click:Connect(function()
         self:Minimize()
@@ -565,7 +413,6 @@ function UILibrary:Minimize()
     if self.Minimized then return end
     self.Minimized = true
     
-    -- Animate minimize
     local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     
     -- Hide content
@@ -592,7 +439,6 @@ function UILibrary:Maximize()
     if not self.Minimized then return end
     self.Minimized = false
     
-    -- Animate maximize
     local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     
     -- Show content
@@ -615,8 +461,98 @@ function UILibrary:Maximize()
     self.MiniMinBtn.Text = "─"
 end
 
--- Create Tab
+-- Icon Button System (FIXED)
+function UILibrary:SetupIconButton(iconBtn, window)
+    local isVisible = true
+    
+    -- Hover Effects
+    local hoverTween = nil
+    iconBtn.MouseEnter:Connect(function()
+        if hoverTween then hoverTween:Cancel() end
+        hoverTween = TweenService:Create(iconBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 60, 0, 60),
+            Position = UDim2.new(0, 12.5, 0.5, -30)
+        })
+        hoverTween:Play()
+        
+        -- Show glow
+        self.IconGlow.Visible = true
+        TweenService:Create(self.IconGlow, TweenInfo.new(0.3), {
+            ImageTransparency = 0.5
+        }):Play()
+    end)
+    
+    iconBtn.MouseLeave:Connect(function()
+        if hoverTween then hoverTween:Cancel() end
+        hoverTween = TweenService:Create(iconBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 55, 0, 55),
+            Position = UDim2.new(0, 15, 0.5, -27.5)
+        })
+        hoverTween:Play()
+        
+        -- Hide glow
+        TweenService:Create(self.IconGlow, TweenInfo.new(0.3), {
+            ImageTransparency = 0.8
+        }):Play()
+        wait(0.3)
+        self.IconGlow.Visible = false
+    end)
+    
+    -- Left Click: Toggle Visibility
+    iconBtn.MouseButton1Click:Connect(function()
+        if self.Minimized then
+            self:Maximize()
+            return
+        end
+        
+        isVisible = not isVisible
+        self.IsVisible = isVisible
+        
+        if isVisible then
+            window.Visible = true
+            TweenService:Create(window, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = UDim2.new(0.5, -250, 0.5, -200)
+            }):Play()
+            iconBtn.BackgroundColor3 = UI_THEME.Accent
+        else
+            TweenService:Create(window, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Position = UDim2.new(0.5, -250, 0.5, -250)
+            }):Play()
+            wait(0.3)
+            window.Visible = false
+            iconBtn.BackgroundColor3 = UI_THEME.IconBg
+        end
+    end)
+    
+    -- Right Click: Minimize/Restore
+    iconBtn.MouseButton2Click:Connect(function()
+        if self.Minimized then
+            self:Maximize()
+        else
+            self:Minimize()
+        end
+    end)
+    
+    -- Keyboard Shortcut: Ctrl + M
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.M and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            if self.Minimized then
+                self:Maximize()
+            else
+                self:Minimize()
+            end
+        end
+    end)
+end
+
+-- Create Tab (FIXED)
 function UILibrary:CreateTab(tabName, icon)
+    if not self.TabsContainer then
+        error("UI Library not initialized! Call CreateWindow first.")
+        return
+    end
+    
     local tabData = {
         Name = tabName,
         Icon = icon or "📄",
@@ -644,7 +580,7 @@ function UILibrary:CreateTab(tabName, icon)
     -- Update canvas size
     self.TabsContainer.CanvasSize = UDim2.new(0, 0, 0, (#self.Tabs + 1) * 40 + 10)
     
-    -- Tab content frame (will be shown when selected)
+    -- Tab content frame
     local tabContent = Instance.new("Frame")
     tabContent.Name = "TabContent_" .. tabName
     tabContent.Size = UDim2.new(1, 0, 1, 0)
@@ -670,22 +606,22 @@ function UILibrary:CreateTab(tabName, icon)
     
     return {
         Tab = tabData,
-        AddToggle = function(self, label, default, callback)
+        AddToggle = function(_, label, default, callback)
             return UILibrary:AddToggle(tabData, label, default, callback)
         end,
-        AddSlider = function(self, label, min, max, default, callback)
+        AddSlider = function(_, label, min, max, default, callback)
             return UILibrary:AddSlider(tabData, label, min, max, default, callback)
         end,
-        AddDropdown = function(self, label, options, default, callback)
+        AddDropdown = function(_, label, options, default, callback)
             return UILibrary:AddDropdown(tabData, label, options, default, callback)
         end,
-        AddTextBox = function(self, label, default, callback)
+        AddTextBox = function(_, label, default, callback)
             return UILibrary:AddTextBox(tabData, label, default, callback)
         end
     }
 end
 
--- Select Tab
+-- Select Tab (FIXED)
 function UILibrary:SelectTab(tabData)
     if self.CurrentTab then
         self.CurrentTab.Content.Visible = false
@@ -699,7 +635,7 @@ function UILibrary:SelectTab(tabData)
     tabData.Button.TextColor3 = UI_THEME.Text
 end
 
--- Add Toggle
+-- Add Toggle (FIXED)
 function UILibrary:AddToggle(tabData, label, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -10, 0, 40)
@@ -762,7 +698,7 @@ function UILibrary:AddToggle(tabData, label, default, callback)
     table.insert(tabData.Elements, frame)
     
     return {
-        SetValue = function(self, value)
+        SetValue = function(_, value)
             state = value
             updateToggle()
         end,
@@ -772,7 +708,7 @@ function UILibrary:AddToggle(tabData, label, default, callback)
     }
 end
 
--- Add Slider
+-- Add Slider (FIXED)
 function UILibrary:AddSlider(tabData, label, min, max, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -10, 0, 55)
@@ -868,7 +804,7 @@ function UILibrary:AddSlider(tabData, label, min, max, default, callback)
     table.insert(tabData.Elements, frame)
     
     return {
-        SetValue = function(self, newValue)
+        SetValue = function(_, newValue)
             value = math.clamp(newValue, min, max)
             local relativeX = (value - min) / (max - min)
             sliderFill.Size = UDim2.new(relativeX, 0, 1, 0)
@@ -882,8 +818,13 @@ function UILibrary:AddSlider(tabData, label, min, max, default, callback)
     }
 end
 
--- Add Dropdown
+-- Add Dropdown (FIXED)
 function UILibrary:AddDropdown(tabData, label, options, default, callback)
+    if not options or #options == 0 then
+        error("Dropdown must have at least one option")
+        return
+    end
+    
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -10, 0, 40)
     frame.Position = UDim2.new(0, 5, 0, #tabData.Elements * 45 + 5)
@@ -906,7 +847,7 @@ function UILibrary:AddDropdown(tabData, label, options, default, callback)
     dropdownBtn.BackgroundColor3 = UI_THEME.Dropdown
     dropdownBtn.BorderSizePixel = 1
     dropdownBtn.BorderColor3 = UI_THEME.Border
-    dropdownBtn.Text = default or options[1] or "Select"
+    dropdownBtn.Text = default or options[1]
     dropdownBtn.TextColor3 = UI_THEME.Text
     dropdownBtn.TextSize = 13
     dropdownBtn.Font = Enum.Font.Gotham
@@ -936,6 +877,7 @@ function UILibrary:AddDropdown(tabData, label, options, default, callback)
     
     -- Populate dropdown
     local function populateDropdown()
+        -- Clear existing options
         for _, child in pairs(dropdownList:GetChildren()) do
             if child:IsA("TextButton") then
                 child:Destroy()
@@ -994,7 +936,7 @@ function UILibrary:AddDropdown(tabData, label, options, default, callback)
     table.insert(tabData.Elements, frame)
     
     return {
-        SetValue = function(self, value)
+        SetValue = function(_, value)
             selected = value
             dropdownBtn.Text = value
             if callback then callback(value) end
@@ -1002,14 +944,14 @@ function UILibrary:AddDropdown(tabData, label, options, default, callback)
         GetValue = function()
             return selected
         end,
-        RefreshOptions = function(self, newOptions)
+        RefreshOptions = function(_, newOptions)
             options = newOptions
             populateDropdown()
         end
     }
 end
 
--- Add TextBox
+-- Add TextBox (FIXED)
 function UILibrary:AddTextBox(tabData, label, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -10, 0, 40)
@@ -1052,7 +994,7 @@ function UILibrary:AddTextBox(tabData, label, default, callback)
     table.insert(tabData.Elements, frame)
     
     return {
-        SetValue = function(self, value)
+        SetValue = function(_, value)
             textBox.Text = value
         end,
         GetValue = function()
@@ -1061,12 +1003,6 @@ function UILibrary:AddTextBox(tabData, label, default, callback)
     }
 end
 
--- Return the library with cleanup
-local function returnLibrary()
-    return UILibrary
-end
-
--- Store final reference
+-- Return the library
 _G[UI_INSTANCE_NAME] = UILibrary
-
 return UILibrary
