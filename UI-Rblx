@@ -1,16 +1,43 @@
 --[[
-    Advanced Roblox UI Library
-    Features: Toggle, Slider, DropdownBox, Scrolling, Draggable Window,
-    Minimize/Maximize, Icon Button, Tabs, TextBox, Vertical Mini UI
+    Advanced Roblox UI Library V2
+    Features: 
+    - Auto cleanup on re-execution
+    - Icon/Logo button for minimize/maximize
+    - Toggle, Slider, DropdownBox, Scrolling
+    - Draggable window with minimize/maximize
+    - Tabs section with TextBox
+    - Vertical Mini UI
 ]]
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
-local mouse = player:GetMouse()
-
--- Services
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- ===== CLEANUP SYSTEM =====
+-- Store reference to previous instance for cleanup
+local _G = getgenv() or _G
+local UI_INSTANCE_NAME = "NFC_UI_LIBRARY"
+
+-- Cleanup previous instance
+if _G[UI_INSTANCE_NAME] then
+    pcall(function()
+        local oldUI = _G[UI_INSTANCE_NAME]
+        if oldUI.ScreenGui then
+            oldUI.ScreenGui:Destroy()
+        end
+        if oldUI.IconButton then
+            oldUI.IconButton:Destroy()
+        end
+        if oldUI.Window then
+            oldUI.Window:Destroy()
+        end
+        -- Clear all references
+        _G[UI_INSTANCE_NAME] = nil
+    end)
+    wait(0.1) -- Small delay to ensure cleanup
+end
 
 -- Main UI Library
 local UILibrary = {}
@@ -22,6 +49,10 @@ UILibrary.Dragging = false
 UILibrary.DragInput = nil
 UILibrary.DragStart = nil
 UILibrary.StartPos = nil
+UILibrary.IsVisible = true
+UILibrary.IconButton = nil
+UILibrary.ScreenGui = nil
+UILibrary.IconToggled = false
 
 -- Constants
 local UI_THEME = {
@@ -37,24 +68,37 @@ local UI_THEME = {
     ToggleOff = Color3.fromRGB(60, 60, 70),
     SliderBg = Color3.fromRGB(50, 50, 60),
     SliderFill = Color3.fromRGB(70, 130, 255),
+    IconBg = Color3.fromRGB(40, 40, 48),
+    IconHover = Color3.fromRGB(60, 60, 70),
 }
 
--- Create ScreenGui
+-- Create ScreenGui with error handling
 local function createScreenGui()
     local gui = Instance.new("ScreenGui")
     gui.Name = "UILibrary"
     gui.Parent = player.PlayerGui
     gui.ResetOnSpawn = false
+    -- Ensure it stays even if player respawns
+    gui.IgnoreGuiInset = true
     return gui
 end
 
 -- Main Window Creation
 function UILibrary:CreateWindow(title, size)
+    -- Cleanup if window exists
     if self.Window then
         self.Window:Destroy()
+        self.Window = nil
+    end
+    
+    if self.ScreenGui then
+        self.ScreenGui:Destroy()
+        self.ScreenGui = nil
     end
 
-    local screenGui = createScreenGui()
+    self.ScreenGui = createScreenGui()
+    local screenGui = self.ScreenGui
+    
     local window = Instance.new("Frame")
     window.Name = "MainWindow"
     window.Size = size or UDim2.new(0, 500, 0, 400)
@@ -228,22 +272,110 @@ function UILibrary:CreateWindow(title, size)
     miniMaxBtn.Font = Enum.Font.Gotham
     miniMaxBtn.Parent = miniUI
     
-    -- Icon Button (Outside UI)
-    local iconBtn = Instance.new("TextButton")
+    -- ===== ENHANCED ICON BUTTON (Logo Style) =====
+    local iconBtn = Instance.new("ImageButton")
     iconBtn.Name = "IconButton"
-    iconBtn.Size = UDim2.new(0, 50, 0, 50)
-    iconBtn.Position = UDim2.new(0, 10, 0.5, -25)
-    iconBtn.BackgroundColor3 = UI_THEME.Accent
-    iconBtn.BorderSizePixel = 0
-    iconBtn.Text = "⚙"
-    iconBtn.TextColor3 = UI_THEME.Text
-    iconBtn.TextSize = 28
-    iconBtn.Font = Enum.Font.Gotham
+    iconBtn.Size = UDim2.new(0, 55, 0, 55)
+    iconBtn.Position = UDim2.new(0, 15, 0.5, -27.5)
+    iconBtn.BackgroundColor3 = UI_THEME.IconBg
+    iconBtn.BorderSizePixel = 2
+    iconBtn.BorderColor3 = UI_THEME.Accent
+    iconBtn.Image = "rbxassetid://6031090978" -- Default gear icon
+    iconBtn.ScaleType = Enum.ScaleType.Fit
     iconBtn.Parent = screenGui
+    
+    -- Icon Button Shadow
+    local iconShadow = Instance.new("ImageLabel")
+    iconShadow.Name = "IconShadow"
+    iconShadow.Size = UDim2.new(1, 10, 1, 10)
+    iconShadow.Position = UDim2.new(0, -5, 0, -5)
+    iconShadow.BackgroundTransparency = 1
+    iconShadow.Image = "rbxassetid://1316045587"
+    iconShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    iconShadow.ImageTransparency = 0.7
+    iconShadow.Parent = iconBtn
     
     local iconCorner = Instance.new("UICorner")
     iconCorner.CornerRadius = UDim.new(1, 0)
     iconCorner.Parent = iconBtn
+    
+    -- Icon Glow Effect
+    local iconGlow = Instance.new("ImageLabel")
+    iconGlow.Name = "IconGlow"
+    iconGlow.Size = UDim2.new(1.3, 0, 1.3, 0)
+    iconGlow.Position = UDim2.new(-0.15, 0, -0.15, 0)
+    iconGlow.BackgroundTransparency = 1
+    iconGlow.Image = "rbxassetid://1316045587"
+    iconGlow.ImageColor3 = UI_THEME.Accent
+    iconGlow.ImageTransparency = 0.8
+    iconGlow.Visible = false
+    iconGlow.Parent = iconBtn
+    
+    -- Icon Hover Effects
+    local iconHoverTween = nil
+    iconBtn.MouseEnter:Connect(function()
+        if iconHoverTween then iconHoverTween:Cancel() end
+        iconHoverTween = TweenService:Create(iconBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 60, 0, 60),
+            Position = UDim2.new(0, 12.5, 0.5, -30)
+        })
+        iconHoverTween:Play()
+        
+        -- Show glow
+        iconGlow.Visible = true
+        TweenService:Create(iconGlow, TweenInfo.new(0.3), {
+            ImageTransparency = 0.5
+        }):Play()
+    end)
+    
+    iconBtn.MouseLeave:Connect(function()
+        if iconHoverTween then iconHoverTween:Cancel() end
+        iconHoverTween = TweenService:Create(iconBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 55, 0, 55),
+            Position = UDim2.new(0, 15, 0.5, -27.5)
+        })
+        iconHoverTween:Play()
+        
+        -- Hide glow
+        TweenService:Create(iconGlow, TweenInfo.new(0.3), {
+            ImageTransparency = 0.8
+        }):Play()
+        wait(0.3)
+        iconGlow.Visible = false
+    end)
+    
+    -- ===== ENHANCED ICON FUNCTIONALITY =====
+    local iconState = "closed" -- "closed" or "open"
+    
+    local function updateIconState(newState)
+        iconState = newState
+        if iconState == "open" then
+            iconBtn.Image = "rbxassetid://6031090978" -- Gear icon (open)
+            iconBtn.BackgroundColor3 = UI_THEME.Accent
+            iconBtn.BorderColor3 = Color3.fromRGB(255, 255, 255)
+            iconBtn.Size = UDim2.new(0, 60, 0, 60)
+            iconBtn.Position = UDim2.new(0, 12.5, 0.5, -30)
+            -- Pulse animation
+            spawn(function()
+                for i = 1, 3 do
+                    TweenService:Create(iconBtn, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                        Size = UDim2.new(0, 65, 0, 65),
+                    }):Play()
+                    wait(0.2)
+                    TweenService:Create(iconBtn, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                        Size = UDim2.new(0, 60, 0, 60),
+                    }):Play()
+                    wait(0.1)
+                end
+            end)
+        else
+            iconBtn.Image = "rbxassetid://6031090978" -- Gear icon (closed)
+            iconBtn.BackgroundColor3 = UI_THEME.IconBg
+            iconBtn.BorderColor3 = UI_THEME.Accent
+            iconBtn.Size = UDim2.new(0, 55, 0, 55)
+            iconBtn.Position = UDim2.new(0, 15, 0.5, -27.5)
+        end
+    end
     
     -- Store references
     self.Window = window
@@ -256,10 +388,14 @@ function UILibrary:CreateWindow(title, size)
     self.MiniMinBtn = miniMinBtn
     self.MiniMaxBtn = miniMaxBtn
     self.IconButton = iconBtn
+    self.IconGlow = iconGlow
     self.ScreenGui = screenGui
     self.Content = content
     self.Tabs = {}
     self.CurrentTab = nil
+    self.IsVisible = true
+    self.IconState = "closed"
+    self.updateIconState = updateIconState
     
     -- Setup dragging
     self:SetupDragging(window, topBar)
@@ -267,10 +403,94 @@ function UILibrary:CreateWindow(title, size)
     -- Setup minimize/maximize
     self:SetupMinimizeMaximize()
     
-    -- Setup icon button
-    self:SetupIconButton()
+    -- Setup enhanced icon button
+    self:SetupEnhancedIconButton(iconBtn, window)
+    
+    -- Save to global for cleanup
+    _G[UI_INSTANCE_NAME] = self
     
     return self
+end
+
+-- Enhanced Icon Button System
+function UILibrary:SetupEnhancedIconButton(iconBtn, window)
+    local isVisible = true
+    local minimized = false
+    local iconState = "closed"
+    local selfRef = self
+    
+    -- Click to toggle UI visibility with animation
+    iconBtn.MouseButton1Click:Connect(function()
+        if minimized then
+            -- If minimized, maximize first
+            self:Maximize()
+            minimized = false
+            return
+        end
+        
+        isVisible = not isVisible
+        self.IsVisible = isVisible
+        
+        if isVisible then
+            -- Show window with animation
+            window.Visible = true
+            TweenService:Create(window, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = UDim2.new(0.5, -250, 0.5, -200)
+            }):Play()
+            self.updateIconState("open")
+            
+            -- Play click animation
+            TweenService:Create(iconBtn, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 50, 0, 50)
+            }):Play()
+            wait(0.15)
+            TweenService:Create(iconBtn, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 60, 0, 60)
+            }):Play()
+        else
+            -- Hide window with animation
+            TweenService:Create(window, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Position = UDim2.new(0.5, -250, 0.5, -250)
+            }):Play()
+            wait(0.3)
+            window.Visible = false
+            self.updateIconState("closed")
+            
+            -- Play click animation
+            TweenService:Create(iconBtn, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 50, 0, 50)
+            }):Play()
+            wait(0.15)
+            TweenService:Create(iconBtn, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 55, 0, 55)
+            }):Play()
+        end
+    end)
+    
+    -- Right click to minimize/restore
+    iconBtn.MouseButton2Click:Connect(function()
+        if self.Minimized then
+            self:Maximize()
+            minimized = false
+        else
+            self:Minimize()
+            minimized = true
+        end
+    end)
+    
+    -- Keyboard shortcut (Ctrl + M)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.M and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            if self.Minimized then
+                self:Maximize()
+                minimized = false
+            else
+                self:Minimize()
+                minimized = true
+            end
+        end
+    end)
 end
 
 -- Dragging System
@@ -393,31 +613,6 @@ function UILibrary:Maximize()
     -- Update button text
     self.MinimizeBtn.Text = "─"
     self.MiniMinBtn.Text = "─"
-end
-
--- Icon Button System
-function UILibrary:SetupIconButton()
-    local iconBtn = self.IconButton
-    local window = self.Window
-    local isVisible = true
-    
-    iconBtn.MouseButton1Click:Connect(function()
-        isVisible = not isVisible
-        window.Visible = isVisible
-        
-        -- Update icon
-        if isVisible then
-            iconBtn.Text = "✕"
-            iconBtn.BackgroundColor3 = UI_THEME.Accent
-            -- Show window with animation
-            TweenService:Create(window, TweenInfo.new(0.3), {
-                Position = UDim2.new(0.5, -250, 0.5, -200)
-            }):Play()
-        else
-            iconBtn.Text = "⚙"
-            iconBtn.BackgroundColor3 = UI_THEME.Accent
-        end
-    end)
 end
 
 -- Create Tab
@@ -842,7 +1037,8 @@ function UILibrary:AddTextBox(tabData, label, default, callback)
     textBox.TextColor3 = UI_THEME.Text
     textBox.TextSize = 13
     textBox.Font = Enum.Font.Gotham
-    textBox.Parent = frame    
+    textBox.Parent = frame
+    
     local textBoxCorner = Instance.new("UICorner")
     textBoxCorner.CornerRadius = UDim.new(0, 4)
     textBoxCorner.Parent = textBox
@@ -865,5 +1061,12 @@ function UILibrary:AddTextBox(tabData, label, default, callback)
     }
 end
 
--- Return the library
+-- Return the library with cleanup
+local function returnLibrary()
+    return UILibrary
+end
+
+-- Store final reference
+_G[UI_INSTANCE_NAME] = UILibrary
+
 return UILibrary
